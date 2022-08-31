@@ -41,14 +41,27 @@ namespace sql
     bool fetchRow(void) noexcept;
 
     query& arg(const std::string& text);
-    query& arg(int number);
+
+    template <typename float_type, std::enable_if_t<std::is_floating_point<float_type>::value, bool> = true>
+    query& arg(float_type real);
+
+    template<typename int_type, std::enable_if_t<std::is_integral<int_type>::value, bool> = true>
+    query& arg(int_type number);
 
     query& getField(std::string& text);
-    query& getField(int& number);
+
+    template <typename float_type, std::enable_if_t<std::is_floating_point<float_type>::value, bool> = true>
+    query& getField(float_type& real);
+
+    template<typename int_type, std::enable_if_t<std::is_integral<int_type>::value, bool> = true>
+    query& getField(int_type& number);
 
   protected:
-    query(sqlite3_stmt* statement);
+    explicit query(sqlite3_stmt* statement);
   private:
+    void throw_if_error_binding(int errval);
+    bool field_valid_or_throw(int expected_type);
+
     sqlite3_stmt* m_statement;
     int m_last_error;
     int m_arg;
@@ -56,6 +69,46 @@ namespace sql
     bool m_buffered_filled;
   };
 
+
+  template <typename float_type, std::enable_if_t<std::is_floating_point<float_type>::value, bool>>
+  query& query::arg(float_type real)
+  {
+    if(++m_arg, !valid())
+      throw m_arg;
+
+    throw_if_error_binding(sqlite3_bind_double(m_statement, m_arg, real));
+    return *this;
+  }
+
+  template<typename int_type, std::enable_if_t<std::is_integral<int_type>::value, bool>>
+  query& query::arg(int_type number)
+  {
+    if(++m_arg, !valid())
+      throw m_arg;
+
+    throw_if_error_binding(sqlite3_bind_int64(m_statement, m_arg, number));
+    return *this;
+  }
+
+  template <typename float_type, std::enable_if_t<std::is_floating_point<float_type>::value, bool>>
+  query& query::getField(float_type& real)
+  {
+    real = field_valid_or_throw(SQLITE_FLOAT) ?
+             sqlite3_column_double(m_statement, m_field) :
+             0.0;
+    ++m_field;
+    return *this;
+  }
+
+  template<typename int_type, std::enable_if_t<std::is_integral<int_type>::value, bool>>
+  query& query::getField(int_type& number)
+  {
+    number = field_valid_or_throw(SQLITE_INTEGER) ?
+               sqlite3_column_int64(m_statement, m_field) :
+               0;
+    ++m_field;
+    return *this;
+  }
 }
 
 #endif // SIMPLE_SQLITE_H
