@@ -1,6 +1,5 @@
 #include "simple_jscore.h"
 
-#include <crypto/strhash.h>
 #include <curl/curl.h>
 
 #include <glib-object.h>
@@ -258,20 +257,18 @@ namespace XMLHttpRequest
 
     connection.setOpt(CURLOPT_URL, HTTPConnection::hostbased_url(url).c_str());
 
-    switch(hash(type))
-    {
-      case "GET"_hash:
-        connection.setOpt(CURLOPT_HTTPGET, 1);
-        break;
-      case "POST"_hash:
-        connection.setOpt(CURLOPT_POST, 1);
-        break;
-      case "PUT"_hash:
-        connection.setOpt(CURLOPT_PUT, 1);
-        break;
-      default:
-        g_assert(false);
-    }
+    constexpr std::string_view get_type  = "GET";
+    constexpr std::string_view post_type = "POST";
+    constexpr std::string_view put_type  = "PUT";
+
+    if(get_type == type)
+      connection.setOpt(CURLOPT_HTTPGET, 1);
+    else if(post_type == type)
+      connection.setOpt(CURLOPT_POST, 1);
+    else if(put_type == type)
+      connection.setOpt(CURLOPT_PUT, 1);
+    else
+      g_assert(false);
 
     g_assert(async == FALSE);
 
