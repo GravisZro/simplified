@@ -106,114 +106,50 @@ namespace sql
     return m_last_error == SQLITE_ROW;
   }
 
-#if 0
-  query& query::arg(const std::string& text)
-  {
-    ++m_arg;
-    if(!valid())
-      throw m_arg;
 
-    m_last_error = sqlite3_bind_text(m_statement, m_arg, text.c_str(), text.size(), SQLITE_TRANSIENT);
-    throw_if_error_setting();
-
-    return *this;
-  }
-
-
-  query& query::arg(double real)
-  {
-    ++m_arg;
-    if(!valid())
-      throw m_arg;
-
-    m_last_error = sqlite3_bind_double(m_statement, m_arg, real);
-    if(m_last_error != SQLITE_OK)
-      throw "error setting argument: " + std::to_string(m_arg) +
-        " of " + std::to_string(sqlite3_bind_parameter_count(m_statement)) +
-        "\n" + sqlite3_errstr(m_last_error);
-
-    return *this;
-  }
-
-  query& query::arg(int number)
-  {
-    ++m_arg;
-    if(!valid())
-      throw m_arg;
-
-    m_last_error = sqlite3_bind_int(m_statement, m_arg, number);
-    if(m_last_error != SQLITE_OK)
-      throw "error setting argument: " + std::to_string(m_arg) +
-        " of " + std::to_string(sqlite3_bind_parameter_count(m_statement)) +
-        "\n" + sqlite3_errstr(m_last_error);
-
-    return *this;
-  }
-
-  query& query::getField(std::string& text)
-  {
-    int field_type = sqlite3_column_type(m_statement, m_field);
-    if(!valid() || (field_type != SQLITE_TEXT && field_type != SQLITE_NULL))
-      throw "field type mismatch for field: " + std::to_string(m_field) +
-        " of " + std::to_string(sqlite3_column_count(m_statement)) +
-        " expected type id: " + std::to_string(field_type);
-    text.clear();
-    if(field_type != SQLITE_NULL)
-    {
-      const unsigned char* rval = sqlite3_column_text(m_statement, m_field);
-      if(rval != NULL)
-        text = reinterpret_cast<const char*>(rval);
-    }
-    ++m_field;
-    return *this;
-  }
-
-  query& query::getField(double& real)
-  {
-    int field_type = sqlite3_column_type(m_statement, m_field);
-    if(!valid() || (field_type != SQLITE_FLOAT && field_type != SQLITE_NULL))
-      throw "field type mismatch for field: " + std::to_string(m_field) +
-        " of " + std::to_string(sqlite3_column_count(m_statement)) +
-        " expected type id: " + std::to_string(field_type);
-    if(field_type != SQLITE_NULL)
-      real = sqlite3_column_double(m_statement, m_field);
-    else
-      real = 0.0;
-    ++m_field;
-    return *this;
-  }
-
-  query& query::getField(int& number)
-  {
-    int field_type = sqlite3_column_type(m_statement, m_field);
-    if(!valid() || (field_type != SQLITE_INTEGER && field_type != SQLITE_NULL))
-      throw "field type mismatch for field: " + std::to_string(m_field) +
-        " of " + std::to_string(sqlite3_column_count(m_statement)) +
-        " expected type id: " + std::to_string(field_type);
-    if(field_type != SQLITE_NULL)
-      number = sqlite3_column_int(m_statement, m_field);
-    else
-      number = 0;
-    ++m_field;
-    return *this;
-  }
-#endif
-
-  query& query::arg(const std::string& text)
+  query& query::arg(const std::optional<std::string>& text)
   {
     if(++m_arg, !valid())
       throw m_arg;
 
-    throw_if_error_binding(sqlite3_bind_text(m_statement, m_arg, text.c_str(), text.size(), SQLITE_TRANSIENT));
+    throw_if_error_binding(
+          text.has_value() ? sqlite3_bind_text(m_statement, m_arg, text->c_str(), text->size(), SQLITE_TRANSIENT)
+                           : sqlite3_bind_null(m_statement, m_arg)
+                          );
     return *this;
   }
 
-  query& query::getField(std::string& text)
+
+  query& query::getField(std::optional<std::string>& text)
   {
     if(field_valid_or_throw(SQLITE_TEXT))
-      text = reinterpret_cast<const char*>(sqlite3_column_text(m_statement, m_field));
+      text.emplace(reinterpret_cast<const char*>(sqlite3_column_text(m_statement, m_field)));
     else
-      text.clear();
+      text.reset();
+    ++m_field;
+    return *this;
+  }
+
+  query& query::arg(const std::optional<bool>& boolean)
+  {
+    if(++m_arg, !valid())
+      throw m_arg;
+
+    throw_if_error_binding(
+          boolean.has_value() ? sqlite3_bind_int(m_statement, m_arg, *boolean)
+                              : sqlite3_bind_null(m_statement, m_arg)
+                          );
+    return *this;
+  }
+
+  query& query::getField(std::optional<bool>& boolean)
+  {
+    std::optional<int> val;
+    getField(val);
+    if(val.has_value())
+      boolean = *val;
+    else
+      boolean.reset();
     ++m_field;
     return *this;
   }

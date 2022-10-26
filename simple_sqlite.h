@@ -3,6 +3,7 @@
 
 #include <sqlite3.h>
 #include <string>
+#include <optional>
 
 
 namespace sql
@@ -40,28 +41,44 @@ namespace sql
     bool execute(void) noexcept;
     bool fetchRow(void) noexcept;
 
-    query& arg(const std::string& text);
+    query& arg(const std::optional<std::string>& text);
 
     template <typename float_type, std::enable_if_t<std::is_floating_point<float_type>::value, bool> = true>
-    query& arg(float_type real);
-
-    template<typename int_type, std::enable_if_t<std::is_integral<int_type>::value, bool> = true>
-    query& arg(int_type number);
-
-    query& getField(std::string& text);
+    query& arg(const std::optional<float_type>& real);
 
     template <typename float_type, std::enable_if_t<std::is_floating_point<float_type>::value, bool> = true>
-    query& getField(float_type& real);
+    query& arg(float_type real) { return arg(std::optional<float_type>(real)); }
+
 
     template<typename int_type, std::enable_if_t<std::is_integral<int_type>::value, bool> = true>
-    query& getField(int_type& number);
+    query& arg(const std::optional<int_type>& number);
+
+    template<typename int_type, std::enable_if_t<std::is_integral<int_type>::value, bool> = true>
+    query& arg(int_type number) { return arg(std::optional<int_type>(number)); }
+
+
+    query& arg(const std::optional<bool>& boolean);
+    query& arg(bool boolean) { return arg(std::optional<bool>(boolean)); }
+
+
+
+    query& getField(std::optional<std::string>& text);
+
+    template <typename float_type, std::enable_if_t<std::is_floating_point<float_type>::value, bool> = true>
+    query& getField(std::optional<float_type>& real);
+
+    template<typename int_type, std::enable_if_t<std::is_integral<int_type>::value, bool> = true>
+    query& getField(std::optional<int_type>& number);
+
+    query& getField(std::optional<bool>& boolean);
+
+
 
   protected:
-    explicit query(sqlite3_stmt* statement);
-  private:
     void throw_if_error_binding(int errval);
     bool field_valid_or_throw(int expected_type);
-
+    query(sqlite3_stmt* statement);
+  private:
     sqlite3_stmt* m_statement;
     int m_last_error;
     int m_arg;
@@ -69,43 +86,51 @@ namespace sql
     bool m_buffered_filled;
   };
 
-
   template <typename float_type, std::enable_if_t<std::is_floating_point<float_type>::value, bool>>
-  query& query::arg(float_type real)
+  query& query::arg(const std::optional<float_type>& real)
   {
     if(++m_arg, !valid())
       throw m_arg;
 
-    throw_if_error_binding(sqlite3_bind_double(m_statement, m_arg, real));
+    throw_if_error_binding(
+          real.has_value() ? sqlite3_bind_double(m_statement, m_arg, *real)
+                           : sqlite3_bind_null(m_statement, m_arg)
+                          );
     return *this;
   }
 
   template<typename int_type, std::enable_if_t<std::is_integral<int_type>::value, bool>>
-  query& query::arg(int_type number)
+  query& query::arg(const std::optional<int_type>& number)
   {
     if(++m_arg, !valid())
       throw m_arg;
 
-    throw_if_error_binding(sqlite3_bind_int64(m_statement, m_arg, number));
+    throw_if_error_binding(
+          number.has_value() ? sqlite3_bind_int64(m_statement, m_arg, *number)
+                             : sqlite3_bind_null(m_statement, m_arg)
+                          );
     return *this;
   }
 
   template <typename float_type, std::enable_if_t<std::is_floating_point<float_type>::value, bool>>
-  query& query::getField(float_type& real)
+  query& query::getField(std::optional<float_type>& real)
   {
-    real = field_valid_or_throw(SQLITE_FLOAT) ?
-             sqlite3_column_double(m_statement, m_field) :
-             0.0;
+    if(field_valid_or_throw(SQLITE_FLOAT))
+      real = sqlite3_column_double(m_statement, m_field);
+    else
+      real.reset();
+
     ++m_field;
     return *this;
   }
 
   template<typename int_type, std::enable_if_t<std::is_integral<int_type>::value, bool>>
-  query& query::getField(int_type& number)
+  query& query::getField(std::optional<int_type>& number)
   {
-    number = field_valid_or_throw(SQLITE_INTEGER) ?
-               sqlite3_column_int64(m_statement, m_field) :
-               0;
+    if(field_valid_or_throw(SQLITE_INTEGER))
+      number = sqlite3_column_int64(m_statement, m_field);
+    else
+      number.reset();
     ++m_field;
     return *this;
   }
