@@ -3,11 +3,28 @@
 
 #include <sqlite3.h>
 #include <string>
+#include <string_view>
 #include <optional>
+#include <type_traits>
 
 
 namespace sql
 {
+  template< class T >
+  struct is_string_view : std::integral_constant<bool,
+      std::is_same_v<T, std::string_view> ||
+      std::is_same_v<T, std::wstring_view> ||
+      std::is_same_v<T, std::u16string_view>
+      > {};
+
+  template< class T >
+  struct is_sql_type : std::integral_constant<bool,
+      std::is_enum_v<T> ||
+      std::is_arithmetic_v<T> ||
+      std::is_same_v<T, std::string> ||
+      std::is_same_v<T, std::wstring> ||
+      std::is_same_v<T, std::u16string>> {};
+
   class query;
 
   class db
@@ -29,7 +46,7 @@ namespace sql
   class query
   {
     friend class db;
-  public:;
+  public:
     query(query&& other) noexcept;
     ~query(void) noexcept;
 
@@ -41,43 +58,52 @@ namespace sql
     bool execute(void) noexcept;
     bool fetchRow(void) noexcept;
 
-    query& arg(const std::optional<std::string>& text);
+    template <typename T>
+    query& getField(std::optional<T>& generic);
 
-    template <typename float_type, std::enable_if_t<std::is_floating_point<float_type>::value, bool> = true>
-    query& arg(const std::optional<float_type>& real);
+    template <typename T,  std::enable_if_t<is_sql_type<T>::value, bool> = true>
+    query& getField(T& generic);
 
-    template <typename float_type, std::enable_if_t<std::is_floating_point<float_type>::value, bool> = true>
-    query& arg(float_type real) { return arg(std::optional<float_type>(real)); }
+    template <typename T>
+    query& arg(const std::optional<T>& generic);
 
+    //template <typename T,  std::enable_if_t<is_sql_type<typename std::remove_reference<T>::type>::value || is_string_view<typename std::remove_reference<T>::type>::value, bool> = true>
+    template <typename T,  std::enable_if_t<is_sql_type<T>::value || is_string_view<T>::value, bool> = true>
+    query& arg(T generic);
 
-    template<typename int_type, std::enable_if_t<std::is_integral<int_type>::value, bool> = true>
-    query& arg(const std::optional<int_type>& number);
-
-    template<typename int_type, std::enable_if_t<std::is_integral<int_type>::value, bool> = true>
-    query& arg(int_type number) { return arg(std::optional<int_type>(number)); }
-
-
-    query& arg(const std::optional<bool>& boolean);
-    query& arg(bool boolean) { return arg(std::optional<bool>(boolean)); }
-
-
-
-    query& getField(std::optional<std::string>& text);
-
-    template <typename float_type, std::enable_if_t<std::is_floating_point<float_type>::value, bool> = true>
-    query& getField(std::optional<float_type>& real);
-
-    template<typename int_type, std::enable_if_t<std::is_integral<int_type>::value, bool> = true>
-    query& getField(std::optional<int_type>& number);
-
-    query& getField(std::optional<bool>& boolean);
-
-
-
-  protected:
-    void throw_if_error_binding(int errval);
-    bool field_valid_or_throw(int expected_type);
+  private:
     query(sqlite3_stmt* statement);
+
+    template<typename enum_type, std::enable_if_t<std::is_enum_v<enum_type>, bool> = true>
+    int bind(enum_type enumeration);
+
+    template<typename int_type, std::enable_if_t<std::is_integral_v<int_type>, bool> = true>
+    int bind(int_type number);
+
+    template <typename float_type, std::enable_if_t<std::is_floating_point_v<float_type>, bool> = true>
+    int bind(float_type real);
+
+    int bind(const std::string& text);
+    int bind(const std::string_view& text);
+
+    int bind(const std::wstring& text);
+    int bind(const std::u16string_view& text);
+
+    template<typename enum_type, std::enable_if_t<std::is_enum_v<enum_type>, bool> = true>
+    void field(enum_type& enumeration);
+
+    template<typename int_type, std::enable_if_t<std::is_integral_v<int_type>, bool> = true>
+    void field(int_type& number);
+
+    template <typename float_type, std::enable_if_t<std::is_floating_point_v<float_type>, bool> = true>
+    void field(float_type& real);
+
+    void field(std::string& text);
+    void field(std::wstring& text);
+    void field(std::u16string& text);
+
+    void throw_if_error_binding(int errval);
+    void throw_if_bad_field(int expected_type);
   private:
     sqlite3_stmt* m_statement;
     int m_last_error;
@@ -86,53 +112,84 @@ namespace sql
     bool m_buffered_filled;
   };
 
-  template <typename float_type, std::enable_if_t<std::is_floating_point<float_type>::value, bool>>
-  query& query::arg(const std::optional<float_type>& real)
+  template <typename T>
+  query& query::arg(const std::optional<T>& generic)
   {
     if(++m_arg, !valid())
       throw m_arg;
 
     throw_if_error_binding(
-          real.has_value() ? sqlite3_bind_double(m_statement, m_arg, *real)
-                           : sqlite3_bind_null(m_statement, m_arg)
+          generic.has_value() ? bind(*generic)
+                              : sqlite3_bind_null(m_statement, m_arg)
                           );
     return *this;
   }
 
-  template<typename int_type, std::enable_if_t<std::is_integral<int_type>::value, bool>>
-  query& query::arg(const std::optional<int_type>& number)
+
+  //template <typename T,  std::enable_if_t<is_sql_type<typename std::remove_reference<T>::type>::value || is_string_view<typename std::remove_reference<T>::type>::value, bool>>
+  template <typename T,  std::enable_if_t<is_sql_type<T>::value || is_string_view<T>::value, bool>>
+  query& query::arg(T generic)
   {
     if(++m_arg, !valid())
       throw m_arg;
 
-    throw_if_error_binding(
-          number.has_value() ? sqlite3_bind_int64(m_statement, m_arg, *number)
-                             : sqlite3_bind_null(m_statement, m_arg)
-                          );
+    throw_if_error_binding(bind(generic));
     return *this;
   }
 
-  template <typename float_type, std::enable_if_t<std::is_floating_point<float_type>::value, bool>>
-  query& query::getField(std::optional<float_type>& real)
-  {
-    if(field_valid_or_throw(SQLITE_FLOAT))
-      real = sqlite3_column_double(m_statement, m_field);
-    else
-      real.reset();
 
+  template <typename T>
+  query& query::getField(std::optional<T>& generic)
+  {
+    if(valid() && sqlite3_column_type(m_statement, m_field) == SQLITE_NULL)
+      generic.reset();
+    else
+      field(*generic);
     ++m_field;
     return *this;
   }
 
-  template<typename int_type, std::enable_if_t<std::is_integral<int_type>::value, bool>>
-  query& query::getField(std::optional<int_type>& number)
+  template <typename T,  std::enable_if_t<is_sql_type<T>::value, bool>>
+  query& query::getField(T& generic)
   {
-    if(field_valid_or_throw(SQLITE_INTEGER))
-      number = sqlite3_column_int64(m_statement, m_field);
-    else
-      number.reset();
+    field(generic);
     ++m_field;
     return *this;
+  }
+
+
+  template<typename enum_type, std::enable_if_t<std::is_enum_v<enum_type>, bool>>
+  int query::bind(enum_type enumeration)
+    { return sqlite3_bind_int(m_statement, m_arg, enumeration); }
+
+  template<typename int_type, std::enable_if_t<std::is_integral_v<int_type>, bool>>
+  int query::bind(int_type number)
+    { return sqlite3_bind_int64(m_statement, m_arg, number); }
+
+  template <typename float_type, std::enable_if_t<std::is_floating_point_v<float_type>, bool>>
+  int query::bind(float_type real)
+    { return sqlite3_bind_double(m_statement, m_arg, real); }
+
+
+  template<typename enum_type, std::enable_if_t<std::is_enum_v<enum_type>, bool>>
+  void query::field(enum_type& enumeration)
+  {
+    throw_if_bad_field(SQLITE_INTEGER);
+    enumeration = sqlite3_column_int(m_statement, m_field);
+  }
+
+  template<typename int_type, std::enable_if_t<std::is_integral_v<int_type>, bool>>
+  void query::field(int_type& number)
+  {
+    throw_if_bad_field(SQLITE_INTEGER);
+    number = sqlite3_column_int64(m_statement, m_field);
+  }
+
+  template <typename float_type, std::enable_if_t<std::is_floating_point_v<float_type>, bool>>
+  void query::field(float_type& real)
+  {
+    throw_if_bad_field(SQLITE_FLOAT);
+    real = sqlite3_column_double(m_statement, m_field);
   }
 }
 
