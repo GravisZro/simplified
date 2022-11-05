@@ -1,5 +1,7 @@
 #include "simple_sqlite.h"
 
+#include <cstring>
+
 namespace sql
 {
   db::db(void) noexcept
@@ -129,12 +131,14 @@ namespace sql
   int query::bind(const std::string_view& text)
     { return sqlite3_bind_text(m_statement, m_arg, text.data(), text.size(), SQLITE_TRANSIENT); }
 
-
   int query::bind(const std::wstring& text)
     { return sqlite3_bind_text16(m_statement, m_arg, text.c_str(), text.size(), SQLITE_TRANSIENT); }
 
   int query::bind(const std::u16string_view& text)
     { return sqlite3_bind_text16(m_statement, m_arg, text.data(), text.size(), SQLITE_TRANSIENT); }
+
+  int query::bind(const std::vector<uint8_t>& blob)
+    { return sqlite3_bind_blob(m_statement, m_arg, blob.data(), blob.size(), SQLITE_TRANSIENT); }
 
   void query::field(std::string& text)
   {
@@ -145,12 +149,19 @@ namespace sql
   void query::field(std::wstring& text)
   {
     throw_if_bad_field(SQLITE_TEXT);
-    text = reinterpret_cast<const wchar_t*>(sqlite3_column_text16(m_statement, m_field));
+    text = static_cast<const wchar_t*>(sqlite3_column_text16(m_statement, m_field));
   }
 
   void query::field(std::u16string& text)
   {
     throw_if_bad_field(SQLITE_TEXT);
-    text = reinterpret_cast<const char16_t*>(sqlite3_column_text16(m_statement, m_field));
+    text = static_cast<const char16_t*>(sqlite3_column_text16(m_statement, m_field));
+  }
+
+  void query::field(std::vector<uint8_t>& blob)
+  {
+    throw_if_bad_field(SQLITE_BLOB);
+    blob.resize(sqlite3_column_bytes(m_statement, m_field));
+    std::memcpy(blob.data(), sqlite3_column_blob(m_statement, m_field), blob.size());
   }
 }

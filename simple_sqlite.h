@@ -6,6 +6,7 @@
 #include <string_view>
 #include <optional>
 #include <type_traits>
+#include <vector>
 
 
 namespace sql
@@ -85,9 +86,9 @@ namespace sql
 
     int bind(const std::string& text);
     int bind(const std::string_view& text);
-
     int bind(const std::wstring& text);
     int bind(const std::u16string_view& text);
+    int bind(const std::vector<uint8_t>& blob);
 
     template<typename enum_type, std::enable_if_t<std::is_enum_v<enum_type>, bool> = true>
     void field(enum_type& enumeration);
@@ -101,6 +102,7 @@ namespace sql
     void field(std::string& text);
     void field(std::wstring& text);
     void field(std::u16string& text);
+    void field(std::vector<uint8_t>& blob);
 
     void throw_if_error_binding(int errval);
     void throw_if_bad_field(int expected_type);
