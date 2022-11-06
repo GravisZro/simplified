@@ -1,6 +1,7 @@
 #include "simple_sqlite.h"
 
 #include <cstring>
+#include <iostream>
 
 namespace sql
 {
@@ -44,7 +45,7 @@ namespace sql
     sqlite3_stmt* statement = nullptr;
     int rval = sqlite3_prepare_v2(m_db, query_str.c_str(), query_str.size(), &statement, NULL);
     if(rval != SQLITE_OK)
-      throw "build query: " + std::string(sqlite3_errstr(rval));
+      throw "build query: " + std::string(sqlite3_errstr(rval)) + "\ninput: " + query_str;
     return query(statement);
   }
 
