@@ -11,6 +11,12 @@
 
 namespace sql
 {
+  enum use_t : intptr_t
+  {
+    copy = 0,
+    reference = -1,
+  };
+
   template< class T >
   struct is_string_view : std::integral_constant<bool,
       std::is_same_v<T, std::string_view> ||
@@ -34,11 +40,11 @@ namespace sql
     db(void) noexcept;
     ~db(void) noexcept;
 
-    bool open(const std::string& filename) noexcept;
+    bool open(const std::string_view& filename) noexcept;
     bool close(void) noexcept;
 
-    query build_query(const std::string& query_str);
-    bool execute(const std::string& sql_str) noexcept;
+    query build_query(const std::string_view& query_str);
+    bool execute(const std::string_view& sql_str) noexcept;
 
   private:
     sqlite3* m_db;
@@ -66,14 +72,16 @@ namespace sql
     query& getField(T& generic);
 
     template <typename T>
-    query& arg(const std::optional<T>& generic);
+    query& arg(const std::optional<T>& generic, use_t use = copy);
 
-    //template <typename T,  std::enable_if_t<is_sql_type<typename std::remove_reference<T>::type>::value || is_string_view<typename std::remove_reference<T>::type>::value, bool> = true>
     template <typename T,  std::enable_if_t<is_sql_type<T>::value || is_string_view<T>::value, bool> = true>
-    query& arg(T generic);
+    query& arg(T generic, use_t use = copy);
 
   private:
     query(sqlite3_stmt* statement);
+
+    template <typename T,  std::enable_if_t<std::is_enum_v<T> || std::is_arithmetic_v<T>, bool> = true>
+    constexpr int bind(T generic, use_t) { return bind(generic); }
 
     template<typename enum_type, std::enable_if_t<std::is_enum_v<enum_type>, bool> = true>
     int bind(enum_type enumeration);
@@ -84,11 +92,11 @@ namespace sql
     template <typename float_type, std::enable_if_t<std::is_floating_point_v<float_type>, bool> = true>
     int bind(float_type real);
 
-    int bind(const std::string& text);
-    int bind(const std::string_view& text);
-    int bind(const std::wstring& text);
-    int bind(const std::u16string_view& text);
-    int bind(const std::vector<uint8_t>& blob);
+    int bind(const std::string& text, use_t use);
+    int bind(const std::string_view& text, use_t use);
+    int bind(const std::wstring& text, use_t use);
+    int bind(const std::u16string_view& text, use_t use);
+    int bind(const std::vector<uint8_t>& blob, use_t use);
 
     template<typename enum_type, std::enable_if_t<std::is_enum_v<enum_type>, bool> = true>
     void field(enum_type& enumeration);
@@ -115,27 +123,25 @@ namespace sql
   };
 
   template <typename T>
-  query& query::arg(const std::optional<T>& generic)
+  query& query::arg(const std::optional<T>& generic, use_t use)
   {
     if(++m_arg, !valid())
       throw m_arg;
 
     throw_if_error_binding(
-          generic.has_value() ? bind(*generic)
+          generic.has_value() ? bind(*generic, use)
                               : sqlite3_bind_null(m_statement, m_arg)
                           );
     return *this;
   }
 
-
-  //template <typename T,  std::enable_if_t<is_sql_type<typename std::remove_reference<T>::type>::value || is_string_view<typename std::remove_reference<T>::type>::value, bool>>
   template <typename T,  std::enable_if_t<is_sql_type<T>::value || is_string_view<T>::value, bool>>
-  query& query::arg(T generic)
+  query& query::arg(T generic, use_t use)
   {
     if(++m_arg, !valid())
       throw m_arg;
 
-    throw_if_error_binding(bind(generic));
+    throw_if_error_binding(bind(generic, use));
     return *this;
   }
 
@@ -146,7 +152,11 @@ namespace sql
     if(valid() && sqlite3_column_type(m_statement, m_field) == SQLITE_NULL)
       generic.reset();
     else
-      field(*generic);
+    {
+      T data;
+      field(data);
+      generic.emplace(std::move(data));
+    }
     ++m_field;
     return *this;
   }

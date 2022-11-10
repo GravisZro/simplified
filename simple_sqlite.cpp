@@ -1,7 +1,6 @@
 #include "simple_sqlite.h"
 
 #include <cstring>
-#include <iostream>
 
 namespace sql
 {
@@ -16,9 +15,14 @@ namespace sql
       close();
   }
 
-  bool db::open(const std::string& filename) noexcept
+  bool db::open(const std::string_view& filename) noexcept
   {
-    return sqlite3_open(filename.c_str(), &m_db) == SQLITE_OK;
+    return sqlite3_open_v2(filename.data(),
+                           &m_db,
+                           SQLITE_OPEN_READWRITE |
+                           SQLITE_OPEN_CREATE |
+                           SQLITE_OPEN_EXRESCODE
+                           , NULL) == SQLITE_OK;
   }
 
   bool db::close(void) noexcept
@@ -28,10 +32,10 @@ namespace sql
     return sqlite3_close(tmp) == SQLITE_OK;
   }
 
-  bool db::execute(const std::string& sql_str) noexcept
+  bool db::execute(const std::string_view& sql_str) noexcept
   {
     char* err = nullptr;
-    int rc = sqlite3_exec(m_db, sql_str.c_str(), NULL, NULL, &err);
+    int rc = sqlite3_exec(m_db, sql_str.data(), NULL, NULL, &err);
     if(rc != SQLITE_OK)
     {
       sqlite3_free(err);
@@ -40,12 +44,12 @@ namespace sql
     return true;
   }
 
-  query db::build_query(const std::string& query_str)
+  query db::build_query(const std::string_view& query_str)
   {
     sqlite3_stmt* statement = nullptr;
-    int rval = sqlite3_prepare_v2(m_db, query_str.c_str(), query_str.size(), &statement, NULL);
+    int rval = sqlite3_prepare_v2(m_db, query_str.data(), query_str.size(), &statement, NULL);
     if(rval != SQLITE_OK)
-      throw "build query: " + std::string(sqlite3_errstr(rval)) + "\ninput: " + query_str;
+      throw "build query: " + std::string(sqlite3_errstr(rval)).append("\ninput: ").append(query_str);
     return query(statement);
   }
 
@@ -126,20 +130,20 @@ namespace sql
         " expected type id: " + std::to_string(field_type);
   }
 
-  int query::bind(const std::string& text)
-    { return sqlite3_bind_text(m_statement, m_arg, text.c_str(), text.size(), SQLITE_TRANSIENT); }
+  int query::bind(const std::string& text, use_t use)
+    { return sqlite3_bind_text(m_statement, m_arg, text.c_str(), text.size(), reinterpret_cast<sqlite3_destructor_type>(use)); }
 
-  int query::bind(const std::string_view& text)
-    { return sqlite3_bind_text(m_statement, m_arg, text.data(), text.size(), SQLITE_TRANSIENT); }
+  int query::bind(const std::string_view& text, use_t use)
+    { return sqlite3_bind_text(m_statement, m_arg, text.data(), text.size(), reinterpret_cast<sqlite3_destructor_type>(use)); }
 
-  int query::bind(const std::wstring& text)
-    { return sqlite3_bind_text16(m_statement, m_arg, text.c_str(), text.size(), SQLITE_TRANSIENT); }
+  int query::bind(const std::wstring& text, use_t use)
+    { return sqlite3_bind_text16(m_statement, m_arg, text.c_str(), text.size(), reinterpret_cast<sqlite3_destructor_type>(use)); }
 
-  int query::bind(const std::u16string_view& text)
-    { return sqlite3_bind_text16(m_statement, m_arg, text.data(), text.size(), SQLITE_TRANSIENT); }
+  int query::bind(const std::u16string_view& text, use_t use)
+    { return sqlite3_bind_text16(m_statement, m_arg, text.data(), text.size(), reinterpret_cast<sqlite3_destructor_type>(use)); }
 
-  int query::bind(const std::vector<uint8_t>& blob)
-    { return sqlite3_bind_blob(m_statement, m_arg, blob.data(), blob.size(), SQLITE_TRANSIENT); }
+  int query::bind(const std::vector<uint8_t>& blob, use_t use)
+    { return sqlite3_bind_blob(m_statement, m_arg, blob.data(), blob.size(), reinterpret_cast<sqlite3_destructor_type>(use)); }
 
   void query::field(std::string& text)
   {
