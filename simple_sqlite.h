@@ -40,6 +40,8 @@ namespace sql
     db(void) noexcept;
     ~db(void) noexcept;
 
+    constexpr int lastError(void) const noexcept { return m_last_error; }
+
     bool open(const std::string_view& filename) noexcept;
     bool close(void) noexcept;
 
@@ -48,6 +50,7 @@ namespace sql
 
   private:
     sqlite3* m_db;
+    int m_last_error;
   };
 
   class query

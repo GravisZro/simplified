@@ -11,25 +11,26 @@ namespace sql
 
   db::~db(void) noexcept
   {
-    if(m_db != nullptr)
-      close();
+    while(!close()); // wait for sqlite3_close to finish
   }
 
   bool db::open(const std::string_view& filename) noexcept
   {
-    return sqlite3_open_v2(filename.data(),
-                           &m_db,
-                           SQLITE_OPEN_READWRITE |
-                           SQLITE_OPEN_CREATE |
-                           SQLITE_OPEN_EXRESCODE
-                           , NULL) == SQLITE_OK;
+    m_last_error = sqlite3_open_v2(filename.data(),
+                                   &m_db,
+                                   SQLITE_OPEN_READWRITE |
+                                   SQLITE_OPEN_CREATE |
+                                   SQLITE_OPEN_EXRESCODE
+                                   , NULL);
+    return m_last_error == SQLITE_OK;
   }
 
   bool db::close(void) noexcept
   {
-    sqlite3* tmp = m_db;
-    m_db = nullptr;
-    return sqlite3_close(tmp) == SQLITE_OK;
+    m_last_error = sqlite3_close(m_db);
+    if(m_last_error == SQLITE_OK)
+      m_db = nullptr;
+    return m_last_error == SQLITE_OK;
   }
 
   bool db::execute(const std::string_view& sql_str) noexcept
