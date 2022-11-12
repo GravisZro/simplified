@@ -64,6 +64,7 @@ namespace sql
   }
 
   query::query(query&& other) noexcept
+    : query(nullptr)
   {
     operator=(std::move(other));
   }
@@ -76,6 +77,9 @@ namespace sql
 
   query& query::operator= (query&& other) noexcept
   {
+    if(valid())
+      m_last_error = sqlite3_finalize(m_statement);
+
     m_statement = other.m_statement; other.m_statement = nullptr;
     m_last_error = other.m_last_error;
     m_arg = other.m_arg;
