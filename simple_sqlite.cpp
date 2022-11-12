@@ -27,7 +27,7 @@ namespace sql
 
   bool db::close(void) noexcept
   {
-    m_last_error = sqlite3_close(m_db);
+    m_last_error = sqlite3_close_v2(m_db);
     if(m_last_error == SQLITE_OK)
       m_db = nullptr;
     return m_last_error == SQLITE_OK;
@@ -71,7 +71,7 @@ namespace sql
   query::~query(void) noexcept
   {
     if(valid())
-      sqlite3_finalize(m_statement);
+      m_last_error = sqlite3_finalize(m_statement);
   }
 
   query& query::operator= (query&& other) noexcept
