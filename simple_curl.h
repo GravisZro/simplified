@@ -68,6 +68,9 @@ public:
   bool setOpt(CURLoption option, T arg)
     { return checkError(curl_easy_setopt(m_handle, option, arg)); }
 
+  bool setOpt(CURLoption option, bool arg)
+   { return setOpt<int>(option, arg ? 1 : 0); }
+
   bool setOpt(CURLoption option, const std::string& arg)
     { return setOpt(option, arg.c_str()); }
 
