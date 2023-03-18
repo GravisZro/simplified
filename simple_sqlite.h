@@ -57,6 +57,7 @@ namespace sql
   {
     friend class db;
   public:
+    query(void) noexcept : query(nullptr) { }
     query(query&& other) noexcept;
     ~query(void) noexcept;
 
@@ -172,10 +173,9 @@ namespace sql
     return *this;
   }
 
-
   template<typename enum_type, std::enable_if_t<std::is_enum_v<enum_type>, bool>>
   int query::bind(enum_type enumeration)
-    { return sqlite3_bind_int(m_statement, m_arg, enumeration); }
+    { return sqlite3_bind_int(m_statement, m_arg, static_cast<std::underlying_type_t<enum_type>>(enumeration)); }
 
   template<typename int_type, std::enable_if_t<std::is_integral_v<int_type>, bool>>
   int query::bind(int_type number)
