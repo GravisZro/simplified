@@ -191,7 +191,7 @@ namespace sql
   void query::field(enum_type& enumeration)
   {
     throw_if_bad_field(SQLITE_INTEGER);
-    enumeration = sqlite3_column_int(m_statement, m_field);
+    enumeration = enum_type(sqlite3_column_int(m_statement, m_field));
   }
 
   template<typename int_type, std::enable_if_t<std::is_integral_v<int_type>, bool>>
