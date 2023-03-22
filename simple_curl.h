@@ -39,10 +39,11 @@ public:
   bool send(const void* buffer, std::size_t bufferLength, std::size_t* n) noexcept
     { return checkError(curl_easy_send(m_handle, buffer, bufferLength, n)); }
 
-  void clearHeaderFields(void)
+  bool clearHeaderFields(void)
   {
     if(m_headers != nullptr) // ensure non-empty
       curl_slist_free_all(m_headers), m_headers = nullptr; // free and nullify
+    return checkError(curl_easy_setopt(m_handle, CURLOPT_HTTPHEADER, m_headers));
   }
 
   bool setHeaderField(const std::string& name, const std::string& value) noexcept
