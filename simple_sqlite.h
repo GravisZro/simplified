@@ -30,7 +30,8 @@ namespace sql
       std::is_arithmetic_v<T> ||
       std::is_same_v<T, std::string> ||
       std::is_same_v<T, std::wstring> ||
-      std::is_same_v<T, std::u16string>> {};
+      std::is_same_v<T, std::u16string> ||
+      std::is_same_v<T, std::vector<uint8_t>>> {};
 
   class query;
 
