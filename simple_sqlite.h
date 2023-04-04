@@ -13,8 +13,8 @@ namespace sql
 {
   enum use_t : intptr_t
   {
-    copy = 0,
-    reference = -1,
+    reference = 0,
+    copy = -1,
   };
 
   template< class T >
@@ -160,7 +160,7 @@ namespace sql
     {
       T data;
       field(data);
-      generic.emplace(std::move(data));
+      generic.emplace(data);
     }
     ++m_field;
     return *this;
