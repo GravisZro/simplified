@@ -42,6 +42,7 @@ namespace sql
     ~db(void) noexcept;
 
     constexpr int lastError(void) const noexcept { return m_last_error; }
+    constexpr void clearError(void) noexcept { m_last_error = SQLITE_OK; }
 
     bool open(const std::string_view& filename) noexcept;
     bool close(void) noexcept;
