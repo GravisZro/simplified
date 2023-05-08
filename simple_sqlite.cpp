@@ -132,7 +132,8 @@ namespace sql
     if(!valid() || sqlite3_column_type(m_statement, m_field) != expected_type)
       throw "field type mismatch for field: " + std::to_string(m_field) +
         " of " + std::to_string(sqlite3_column_count(m_statement)) +
-        " expected type id: " + std::to_string(field_type);
+        "\nexpected type id: " + std::to_string(expected_type) +
+        "\nrecieved type id: " + std::to_string(field_type);
   }
 
   int query::bind(const std::string& text, use_t use)
